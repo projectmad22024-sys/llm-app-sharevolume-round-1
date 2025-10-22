@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Loading...</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 800px; margin: 2em auto; }
+  h1 { text-align: center; }
+  .data-section { margin-top: 1em; }
+  .label { font-weight: bold; }
+</style>
+</head>
+<body>
+<h1 id="entity-title">Loading...</h1>
+<div class="data-section">
+  <div><span class="label">Entity Name:</span> <span id="share-entity-name">-</span></div>
+  <div><span class="label">Maximum Shares:</span> <span id="share-max-value">-</span> (FY <span id="share-max-fy">-</span>)</div>
+  <div><span class="label">Minimum Shares:</span> <span id="share-min-value">-</span> (FY <span id="share-min-fy">-</span>)</div>
+</div>
+<script>
+(async () => {
+  // Basic utility functions
+  function getQueryParam(param) {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get(param);
+  }
+
+  const defaultCik = '0001267238';
+  let cik = getQueryParam('CIK') || defaultCik;
+
+  // Determine fetch URL
+  const baseUrl = 'https://data.sec.gov/api/xbrl/companyconcept/';
+  const fetchUrl = (`https://api.allorigins.win/get?url=` + encodeURIComponent(`${baseUrl}CIK${cik}/dei/EntityCommonStockSharesOutstanding.json`));
+
+  try {
+    // Fetch data with a proxy allowing cross-origin
+    const response = await fetch(fetchUrl);
+    if (!response.ok) throw new Error('Network response was not ok');
+    const dataContainer = await response.json();
+    const dataBlob = JSON.parse(dataContainer.contents);
+
+    // Extract entityName
+    const entityName = dataBlob.entityName || 'Unknown Entity';
+    document.title = entityName;
+    document.getElementById('entity-title').textContent = entityName;
+    document.getElementById('share-entity-name').textContent = entityName;
+
+    // Filter units.shares for fy > "2020" and numeric val
+    const shares = (dataBlob.units && dataBlob.units.shares) || [];
+    const filteredShares = shares.filter(s => s.fy > '2020' && typeof s.val === 'number');
+
+    if (filteredShares.length === 0) {
+      document.getElementById('share-max-value').textContent = 'N/A';
+      document.getElementById('share-min-value').textContent = 'N/A';
+      document.getElementById('share-max-fy').textContent = '-';
+      document.getElementById('share-min-fy').textContent = '-';
+      return;
+    }
+
+    // Find max and min
+    const maxShare = filteredShares.reduce((prev, curr) => (curr.val > prev.val ? curr : prev));
+    const minShare = filteredShares.reduce((prev, curr) => (curr.val < prev.val ? curr : prev));
+
+    // Update DOM
+    document.getElementById('share-max-value').textContent = maxShare.val;
+    document.getElementById('share-max-fy').textContent = maxShare.fy;
+    document.getElementById('share-min-value').textContent = minShare.val;
+    document.getElementById('share-min-fy').textContent = minShare.fy;
+  } catch (error) {
+    console.error('Error fetching or processing data:', error);
+    document.title = 'Error';
+    document.getElementById('entity-title').textContent = 'Error loading data';
+    document.getElementById('share-entity-name').textContent = 'Error';
+    document.getElementById('share-max-value').textContent = 'Error';
+    document.getElementById('share-min-value').textContent = 'Error';
+    document.getElementById('share-max-fy').textContent = '-';
+    document.getElementById('share-min-fy').textContent = '-';
+  }
+})();
+</script>
+</body>
+</html>
